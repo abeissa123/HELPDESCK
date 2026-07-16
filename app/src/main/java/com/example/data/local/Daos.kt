@@ -98,3 +98,15 @@ interface HistoryDao {
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertHistory(historique: Historique): Long
 }
+
+@Dao
+interface EmailLogDao {
+    @Query("SELECT * FROM emails_log ORDER BY dateEnvoi DESC")
+    fun getAllEmailsFlow(): Flow<List<EmailLog>>
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insertEmail(email: EmailLog): Long
+
+    @Query("DELETE FROM emails_log")
+    suspend fun clearAllEmails()
+}

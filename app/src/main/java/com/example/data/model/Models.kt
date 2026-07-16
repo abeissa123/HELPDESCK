@@ -13,7 +13,15 @@ enum class Role {
 enum class Priorite {
     FAIBLE,
     NORMALE,
-    URGENTE
+    URGENTE;
+
+    fun getDisplayName(): String {
+        return when (this) {
+            FAIBLE -> "Basse"
+            NORMALE -> "Moyenne"
+            URGENTE -> "Haute"
+        }
+    }
 }
 
 enum class Statut {
@@ -33,7 +41,9 @@ data class Utilisateur(
     val email: String,
     val motDePasse: String,
     val role: Role,
-    val service: String? = null
+    val service: String? = null,
+    val notifVibration: Boolean = true,
+    val notifEmail: Boolean = true
 )
 
 @Entity(tableName = "categories")
@@ -74,4 +84,13 @@ data class Historique(
     val typeAction: String, // Ex: "Création", "Changement de statut", "Affectation"
     val descriptionAction: String, // Ex: "Statut modifié de Nouveau à En cours"
     val dateAction: Long = System.currentTimeMillis()
+)
+
+@Entity(tableName = "emails_log")
+data class EmailLog(
+    @PrimaryKey(autoGenerate = true) val id: Long = 0,
+    val destinataire: String,
+    val sujet: String,
+    val contenu: String,
+    val dateEnvoi: Long = System.currentTimeMillis()
 )

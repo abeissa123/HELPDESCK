@@ -28,6 +28,7 @@ import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
+import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -40,6 +41,14 @@ import androidx.navigation.navArgument
 import com.example.data.model.*
 import java.text.SimpleDateFormat
 import java.util.*
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
+import android.widget.Toast
+import androidx.compose.ui.platform.LocalContext
+import android.graphics.pdf.PdfDocument
+import android.graphics.Paint
+import android.graphics.Typeface
+import android.graphics.Color as AndroidColor
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -90,6 +99,12 @@ fun HelpdeskApp(viewModel: HelpdeskViewModel) {
             composable("admin_panel") {
                 AdminPanelScreen(viewModel = viewModel, navController = navController)
             }
+            composable("settings") {
+                SettingsScreen(viewModel = viewModel, navController = navController)
+            }
+            composable("emails_simules") {
+                EmailsSimulesScreen(viewModel = viewModel, navController = navController)
+            }
         }
     }
 }
@@ -104,6 +119,7 @@ fun LoginScreen(viewModel: HelpdeskViewModel) {
     // Formulaire de connexion
     var email by remember { mutableStateOf("") }
     var password by remember { mutableStateOf("") }
+    var isPasswordVisible by remember { mutableStateOf(false) }
 
     // Formulaire d'inscription
     var name by remember { mutableStateOf("") }
@@ -259,7 +275,26 @@ fun LoginScreen(viewModel: HelpdeskViewModel) {
                             onValueChange = { password = it },
                             label = { Text("Mot de passe *") },
                             leadingIcon = { Icon(Icons.Default.Lock, contentDescription = null) },
-                            visualTransformation = PasswordVisualTransformation(),
+                            trailingIcon = {
+                                val image = if (isPasswordVisible) {
+                                    Icons.Default.Visibility
+                                } else {
+                                    Icons.Default.VisibilityOff
+                                }
+                                val description = if (isPasswordVisible) {
+                                    "Masquer le mot de passe"
+                                } else {
+                                    "Afficher le mot de passe"
+                                }
+                                IconButton(onClick = { isPasswordVisible = !isPasswordVisible }) {
+                                    Icon(imageVector = image, contentDescription = description)
+                                }
+                            },
+                            visualTransformation = if (isPasswordVisible) {
+                                VisualTransformation.None
+                            } else {
+                                PasswordVisualTransformation()
+                            },
                             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
                             modifier = Modifier.fillMaxWidth().testTag("password_input"),
                             singleLine = true
@@ -439,6 +474,12 @@ fun DashboardScreen(viewModel: HelpdeskViewModel, navController: NavHostControll
             TopAppBar(
                 title = { Text("Tableau de Bord", fontWeight = FontWeight.Bold) },
                 actions = {
+                    IconButton(onClick = { navController.navigate("emails_simules") }) {
+                        Icon(Icons.Default.Email, contentDescription = "Journal des e-mails")
+                    }
+                    IconButton(onClick = { navController.navigate("settings") }) {
+                        Icon(Icons.Default.Notifications, contentDescription = "Paramètres de notifications")
+                    }
                     IconButton(onClick = { viewModel.logout() }) {
                         Icon(Icons.Default.Logout, contentDescription = "Déconnexion")
                     }
@@ -774,6 +815,45 @@ fun TicketListScreen(viewModel: HelpdeskViewModel, navController: NavHostControl
     val selectedStatus by viewModel.selectedStatusFilter.collectAsStateWithLifecycle()
 
     var showFiltersDialog by remember { mutableStateOf(false) }
+    var showSortMenu by remember { mutableStateOf(false) }
+    val sortOrder by viewModel.sortOrder.collectAsStateWithLifecycle()
+    var showExportMenu by remember { mutableStateOf(false) }
+
+    val context = LocalContext.current
+
+    val csvLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.CreateDocument("text/csv")
+    ) { uri ->
+        if (uri != null) {
+            try {
+                val categoriesMap = categoriesList.associate { it.id to it.nom }
+                val csvContent = generateCsv(tickets, categoriesMap)
+                context.contentResolver.openOutputStream(uri)?.use { os ->
+                    os.write(csvContent.toByteArray(Charsets.UTF_8))
+                }
+                Toast.makeText(context, "Liste exportée en CSV avec succès !", Toast.LENGTH_LONG).show()
+            } catch (e: Exception) {
+                Toast.makeText(context, "Erreur d'export CSV : ${e.message}", Toast.LENGTH_LONG).show()
+            }
+        }
+    }
+
+    val pdfLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.CreateDocument("application/pdf")
+    ) { uri ->
+        if (uri != null) {
+            try {
+                val categoriesMap = categoriesList.associate { it.id to it.nom }
+                val pdfBytes = generatePdf(tickets, categoriesMap)
+                context.contentResolver.openOutputStream(uri)?.use { os ->
+                    os.write(pdfBytes)
+                }
+                Toast.makeText(context, "Liste exportée en PDF avec succès !", Toast.LENGTH_LONG).show()
+            } catch (e: Exception) {
+                Toast.makeText(context, "Erreur d'export PDF : ${e.message}", Toast.LENGTH_LONG).show()
+            }
+        }
+    }
 
     Scaffold(
         topBar = {
@@ -795,6 +875,38 @@ fun TicketListScreen(viewModel: HelpdeskViewModel, navController: NavHostControl
                             }
                         ) {
                             Icon(Icons.Default.FilterList, contentDescription = "Filtres")
+                        }
+                    }
+
+                    Box {
+                        IconButton(
+                            onClick = { showExportMenu = true },
+                            modifier = Modifier.testTag("export_menu_btn")
+                        ) {
+                            Icon(Icons.Default.Share, contentDescription = "Exporter")
+                        }
+                        DropdownMenu(
+                            expanded = showExportMenu,
+                            onDismissRequest = { showExportMenu = false }
+                        ) {
+                            DropdownMenuItem(
+                                text = { Text("Exporter en CSV") },
+                                leadingIcon = { Icon(Icons.Default.List, contentDescription = null) },
+                                onClick = {
+                                    showExportMenu = false
+                                    csvLauncher.launch("tickets_${System.currentTimeMillis()}.csv")
+                                },
+                                modifier = Modifier.testTag("export_csv_item")
+                            )
+                            DropdownMenuItem(
+                                text = { Text("Exporter en PDF") },
+                                leadingIcon = { Icon(Icons.Default.History, contentDescription = null) },
+                                onClick = {
+                                    showExportMenu = false
+                                    pdfLauncher.launch("tickets_${System.currentTimeMillis()}.pdf")
+                                },
+                                modifier = Modifier.testTag("export_pdf_item")
+                            )
                         }
                     }
                 },
@@ -842,6 +954,60 @@ fun TicketListScreen(viewModel: HelpdeskViewModel, navController: NavHostControl
                 shape = RoundedCornerShape(12.dp)
             )
 
+            // Ligne d'informations & de tri
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    text = "${tickets.size} ticket${if (tickets.size > 1) "s" else ""}",
+                    fontSize = 13.sp,
+                    fontWeight = FontWeight.SemiBold,
+                    color = Color.Gray
+                )
+
+                Box {
+                    Row(
+                        modifier = Modifier
+                            .clickable { showSortMenu = true }
+                            .padding(vertical = 4.dp, horizontal = 8.dp)
+                            .testTag("sort_selector"),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(4.dp)
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Sort,
+                            contentDescription = "Trier",
+                            tint = MaterialTheme.colorScheme.primary,
+                            modifier = Modifier.size(18.dp)
+                        )
+                        Text(
+                            text = "Trier : ${sortOrder.getDisplayName()}",
+                            fontSize = 12.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = MaterialTheme.colorScheme.primary
+                        )
+                    }
+
+                    DropdownMenu(
+                        expanded = showSortMenu,
+                        onDismissRequest = { showSortMenu = false }
+                    ) {
+                        TicketSortOrder.values().forEach { order ->
+                            DropdownMenuItem(
+                                text = { Text(order.getDisplayName()) },
+                                onClick = {
+                                    viewModel.setSortOrder(order)
+                                    showSortMenu = false
+                                },
+                                modifier = Modifier.testTag("sort_item_${order.name.lowercase(Locale.FRANCE)}")
+                            )
+                        }
+                    }
+                }
+            }
+
             // Indicateur de filtres actifs
             if (selectedCategory != null || selectedPriority != null || selectedStatus != null) {
                 Row(
@@ -872,7 +1038,7 @@ fun TicketListScreen(viewModel: HelpdeskViewModel, navController: NavHostControl
                         FilterChipActive(label = catName, onDismiss = { viewModel.setCategoryFilter(null) })
                     }
                     if (selectedPriority != null) {
-                        FilterChipActive(label = selectedPriority!!.name, onDismiss = { viewModel.setPriorityFilter(null) })
+                        FilterChipActive(label = selectedPriority!!.getDisplayName(), onDismiss = { viewModel.setPriorityFilter(null) })
                     }
                     if (selectedStatus != null) {
                         FilterChipActive(label = selectedStatus!!.name, onDismiss = { viewModel.setStatusFilter(null) })
@@ -976,7 +1142,7 @@ fun TicketListScreen(viewModel: HelpdeskViewModel, navController: NavHostControl
                                 FilterChip(
                                     selected = selectedPriority == prio,
                                     onClick = { viewModel.setPriorityFilter(prio) },
-                                    label = { Text(prio.name) },
+                                    label = { Text(prio.getDisplayName()) },
                                     modifier = Modifier.padding(2.dp)
                                 )
                             }
@@ -1132,7 +1298,7 @@ fun TicketItem(ticket: Ticket, categoryName: String, onClick: () -> Unit) {
                         modifier = Modifier.size(14.dp)
                     )
                     Text(
-                        text = "Priorité ${ticket.priorite.name}",
+                        text = "Priorité ${ticket.priorite.getDisplayName()}",
                         fontSize = 11.sp,
                         fontWeight = FontWeight.Bold,
                         color = priorityColor
@@ -1319,7 +1485,7 @@ fun TicketCreateScreen(viewModel: HelpdeskViewModel, navController: NavHostContr
                                 )
                                 Spacer(modifier = Modifier.height(4.dp))
                                 Text(
-                                    text = prio.name,
+                                    text = prio.getDisplayName(),
                                     fontSize = 12.sp,
                                     fontWeight = FontWeight.Bold,
                                     color = color
@@ -1381,6 +1547,7 @@ fun TicketDetailScreen(viewModel: HelpdeskViewModel, ticketId: Long, navControll
 
     var commentText by remember { mutableStateOf("") }
     var activeTab by remember { mutableStateOf(0) } // 0: Détails & Suivi, 1: Fil d'actualité (Timeline)
+    var showDeleteConfirmationDialog by remember { mutableStateOf(false) }
 
     // Charger le ticket au démarrage de l'écran
     LaunchedEffect(ticketId) {
@@ -1419,6 +1586,47 @@ fun TicketDetailScreen(viewModel: HelpdeskViewModel, ticketId: Long, navControll
         Statut.FERME -> Color(0xFF616161)
     }
 
+    if (showDeleteConfirmationDialog) {
+        AlertDialog(
+            onDismissRequest = { showDeleteConfirmationDialog = false },
+            title = {
+                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Icon(Icons.Default.Delete, contentDescription = null, tint = MaterialTheme.colorScheme.error)
+                    Text("Supprimer le ticket", fontWeight = FontWeight.Bold)
+                }
+            },
+            text = {
+                Text("Êtes-vous sûr de vouloir supprimer définitivement le ticket #${currentTicket.id} (\"${currentTicket.titre}\") ? Cette action est irréversible.")
+            },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        showDeleteConfirmationDialog = false
+                        viewModel.deleteTicket(currentTicket, onSuccess = {
+                            viewModel.selectTicket(null)
+                            navController.navigateUp()
+                        })
+                    },
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = MaterialTheme.colorScheme.error,
+                        contentColor = MaterialTheme.colorScheme.onError
+                    ),
+                    modifier = Modifier.testTag("confirm_delete_btn")
+                ) {
+                    Text("Supprimer")
+                }
+            },
+            dismissButton = {
+                OutlinedButton(
+                    onClick = { showDeleteConfirmationDialog = false },
+                    modifier = Modifier.testTag("cancel_delete_btn")
+                ) {
+                    Text("Annuler")
+                }
+            }
+        )
+    }
+
     Scaffold(
         topBar = {
             TopAppBar(
@@ -1429,6 +1637,20 @@ fun TicketDetailScreen(viewModel: HelpdeskViewModel, ticketId: Long, navControll
                         navController.navigateUp()
                     }) {
                         Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Retour")
+                    }
+                },
+                actions = {
+                    if (user?.role == Role.TECHNICIEN || user?.role == Role.ADMIN) {
+                        IconButton(
+                            onClick = { showDeleteConfirmationDialog = true },
+                            modifier = Modifier.testTag("delete_ticket_btn")
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.Delete,
+                                contentDescription = "Supprimer le ticket",
+                                tint = MaterialTheme.colorScheme.error
+                            )
+                        }
                     }
                 },
                 colors = TopAppBarDefaults.topAppBarColors(
@@ -1508,7 +1730,7 @@ fun TicketDetailScreen(viewModel: HelpdeskViewModel, ticketId: Long, navControll
                                         Priorite.FAIBLE -> Color(0xFF388E3C)
                                     }
                                     Text(
-                                        text = currentTicket.priorite.name,
+                                        text = currentTicket.priorite.getDisplayName(),
                                         fontWeight = FontWeight.Bold,
                                         color = priorityColor,
                                         fontSize = 13.sp
@@ -2141,4 +2363,475 @@ fun AdminPanelScreen(viewModel: HelpdeskViewModel, navController: NavHostControl
             }
         }
     }
+}
+
+// ----------------------------------------------------
+// 8. SETTINGS SCREEN (NOTIFICATIONS & VIBRATIONS)
+// ----------------------------------------------------
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun SettingsScreen(viewModel: HelpdeskViewModel, navController: NavHostController) {
+    val currentUser by viewModel.currentUser.collectAsStateWithLifecycle()
+
+    var vibrationActive by remember(currentUser) { mutableStateOf(currentUser?.notifVibration ?: true) }
+    var emailActive by remember(currentUser) { mutableStateOf(currentUser?.notifEmail ?: true) }
+
+    Scaffold(
+        topBar = {
+            TopAppBar(
+                title = { Text("Paramètres", fontWeight = FontWeight.Bold) },
+                navigationIcon = {
+                    IconButton(onClick = { navController.popBackStack() }) {
+                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Retour")
+                    }
+                },
+                colors = TopAppBarDefaults.topAppBarColors(
+                    containerColor = MaterialTheme.colorScheme.primaryContainer,
+                    titleContentColor = MaterialTheme.colorScheme.onPrimaryContainer,
+                    navigationIconContentColor = MaterialTheme.colorScheme.onPrimaryContainer
+                )
+            )
+        }
+    ) { innerPadding ->
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(innerPadding)
+                .padding(16.dp),
+            verticalArrangement = Arrangement.spacedBy(16.dp)
+        ) {
+            Text(
+                text = "Préférences de notifications",
+                fontSize = 20.sp,
+                fontWeight = FontWeight.Bold,
+                color = MaterialTheme.colorScheme.primary
+            )
+            Text(
+                text = "Configurez comment vous souhaitez être alerté lors de la création d'un ticket, d'une mise en cours, d'une résolution ou d'un nouveau commentaire.",
+                fontSize = 14.sp,
+                color = Color.Gray
+            )
+
+            // Carte Vibrations
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(12.dp)
+            ) {
+                Column(modifier = Modifier.padding(16.dp)) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(12.dp)
+                        ) {
+                            Icon(
+                                Icons.Default.Vibration,
+                                contentDescription = null,
+                                tint = MaterialTheme.colorScheme.primary,
+                                modifier = Modifier.size(28.dp)
+                            )
+                            Column {
+                                Text("Vibrations tactiles", fontWeight = FontWeight.Bold, fontSize = 16.sp)
+                                Text("Vibrer lors des alertes", fontSize = 12.sp, color = Color.Gray)
+                            }
+                        }
+                        Switch(
+                            checked = vibrationActive,
+                            onCheckedChange = { checked ->
+                                vibrationActive = checked
+                                viewModel.updateNotificationPreferences(checked, emailActive)
+                            }
+                        )
+                    }
+
+                    Spacer(modifier = Modifier.height(16.dp))
+
+                    Button(
+                        onClick = {
+                            // Tester un pattern de vibration
+                            val helper = com.example.util.NotificationHelper(navController.context)
+                            helper.vibrateForEvent(com.example.util.NotificationType.TICKET_RESOLVED)
+                        },
+                        enabled = vibrationActive,
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.1f),
+                            contentColor = MaterialTheme.colorScheme.primary
+                        ),
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = RoundedCornerShape(8.dp)
+                    ) {
+                        Icon(Icons.Default.Vibration, contentDescription = null)
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text("Tester la vibration", fontWeight = FontWeight.Bold)
+                    }
+                }
+            }
+
+            // Carte E-mails
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(12.dp)
+            ) {
+                Column(modifier = Modifier.padding(16.dp)) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(12.dp)
+                        ) {
+                            Icon(
+                                Icons.Default.Email,
+                                contentDescription = null,
+                                tint = MaterialTheme.colorScheme.secondary,
+                                modifier = Modifier.size(28.dp)
+                            )
+                            Column {
+                                Text("Notifications par e-mail", fontWeight = FontWeight.Bold, fontSize = 16.sp)
+                                Text(currentUser?.email ?: "votre-email@company.com", fontSize = 12.sp, color = Color.Gray)
+                            }
+                        }
+                        Switch(
+                            checked = emailActive,
+                            onCheckedChange = { checked ->
+                                emailActive = checked
+                                viewModel.updateNotificationPreferences(vibrationActive, checked)
+                            }
+                        )
+                    }
+
+                    Spacer(modifier = Modifier.height(16.dp))
+
+                    Button(
+                        onClick = {
+                            currentUser?.let { user ->
+                                val dateStr = SimpleDateFormat("dd/MM/yyyy HH:mm:ss", Locale.FRANCE).format(Date())
+                                viewModel.envoyerEmailTest(
+                                    user = user,
+                                    sujet = "📧 [Test] Validation de votre adresse de notification",
+                                    contenu = "Bonjour ${user.nom},\n\nCeci est un e-mail de test envoyé automatiquement par votre plateforme de Helpdesk.\n\nFélicitations, votre configuration de notification par e-mail fonctionne parfaitement !\n\nDate : $dateStr\n\nCordialement,\nL'équipe administrative Helpdesk."
+                                )
+                                // Faire vibrer également pour confirmer
+                                val helper = com.example.util.NotificationHelper(navController.context)
+                                helper.vibrateSimple(150)
+                            }
+                        },
+                        enabled = emailActive,
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = MaterialTheme.colorScheme.secondary.copy(alpha = 0.1f),
+                            contentColor = MaterialTheme.colorScheme.secondary
+                        ),
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = RoundedCornerShape(8.dp)
+                    ) {
+                        Icon(Icons.Default.Email, contentDescription = null)
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text("Simuler un e-mail de test", fontWeight = FontWeight.Bold)
+                    }
+                }
+            }
+        }
+    }
+}
+
+// ----------------------------------------------------
+// 9. EMAILS SIMULÉS SCREEN (GMAIL-LIKE INBOX)
+// ----------------------------------------------------
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun EmailsSimulesScreen(viewModel: HelpdeskViewModel, navController: NavHostController) {
+    val emailLogs by viewModel.emailLogs.collectAsStateWithLifecycle()
+    val sdf = remember { SimpleDateFormat("dd/MM HH:mm", Locale.FRANCE) }
+
+    Scaffold(
+        topBar = {
+            TopAppBar(
+                title = { Text("Mails Envoyés (Simulés)", fontWeight = FontWeight.Bold) },
+                navigationIcon = {
+                    IconButton(onClick = { navController.popBackStack() }) {
+                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Retour")
+                    }
+                },
+                actions = {
+                    if (emailLogs.isNotEmpty()) {
+                        IconButton(onClick = { viewModel.clearAllEmailsLog() }) {
+                            Icon(Icons.Default.Delete, contentDescription = "Vider le journal", tint = MaterialTheme.colorScheme.error)
+                        }
+                    }
+                },
+                colors = TopAppBarDefaults.topAppBarColors(
+                    containerColor = MaterialTheme.colorScheme.secondaryContainer,
+                    titleContentColor = MaterialTheme.colorScheme.onSecondaryContainer,
+                    navigationIconContentColor = MaterialTheme.colorScheme.onSecondaryContainer
+                )
+            )
+        }
+    ) { innerPadding ->
+        if (emailLogs.isEmpty()) {
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(innerPadding),
+                contentAlignment = Alignment.Center
+            ) {
+                Column(
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.spacedBy(8.dp),
+                    modifier = Modifier.padding(24.dp)
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Drafts,
+                        contentDescription = null,
+                        modifier = Modifier.size(64.dp),
+                        tint = Color.Gray
+                    )
+                    Text(
+                        "Aucun e-mail envoyé",
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 18.sp,
+                        color = Color.DarkGray
+                    )
+                    Text(
+                        "Créez des tickets, modifiez un statut ou ajoutez un commentaire pour voir s'activer le simulateur de messagerie.",
+                        textAlign = TextAlign.Center,
+                        fontSize = 13.sp,
+                        color = Color.Gray
+                    )
+                }
+            }
+        } else {
+            LazyColumn(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(innerPadding)
+                    .padding(16.dp),
+                verticalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
+                item {
+                    Text(
+                        text = "Journal des communications SMTP simulées",
+                        fontSize = 14.sp,
+                        color = Color.Gray,
+                        fontWeight = FontWeight.SemiBold,
+                        modifier = Modifier.padding(bottom = 8.dp)
+                    )
+                }
+
+                items(emailLogs) { mail ->
+                    var isExpanded by remember { mutableStateOf(false) }
+
+                    Card(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clickable { isExpanded = !isExpanded },
+                        colors = CardDefaults.cardColors(
+                            containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f)
+                        ),
+                        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
+                        shape = RoundedCornerShape(12.dp)
+                    ) {
+                        Column(modifier = Modifier.padding(16.dp)) {
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.Top
+                            ) {
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.spacedBy(10.dp),
+                                    modifier = Modifier.weight(1f)
+                                ) {
+                                    Surface(
+                                        shape = CircleShape,
+                                        color = MaterialTheme.colorScheme.secondary,
+                                        modifier = Modifier.size(36.dp)
+                                    ) {
+                                        Box(contentAlignment = Alignment.Center) {
+                                            Text(
+                                                text = mail.destinataire.take(1).uppercase(Locale.FRANCE),
+                                                color = Color.White,
+                                                fontWeight = FontWeight.Bold,
+                                                fontSize = 15.sp
+                                            )
+                                        }
+                                    }
+                                    Column {
+                                        Text(
+                                            text = "A : ${mail.destinataire}",
+                                            fontWeight = FontWeight.Bold,
+                                            fontSize = 13.sp,
+                                            maxLines = 1,
+                                            overflow = TextOverflow.Ellipsis
+                                        )
+                                        Text(
+                                            text = "De : noreply@company.com",
+                                            fontSize = 11.sp,
+                                            color = Color.Gray
+                                        )
+                                    }
+                                }
+                                Text(
+                                    text = sdf.format(Date(mail.dateEnvoi)),
+                                    fontSize = 11.sp,
+                                    color = Color.Gray
+                                )
+                            }
+
+                            Spacer(modifier = Modifier.height(10.dp))
+
+                            Text(
+                                text = mail.sujet,
+                                fontWeight = FontWeight.Bold,
+                                fontSize = 14.sp,
+                                color = MaterialTheme.colorScheme.primary
+                            )
+
+                            Spacer(modifier = Modifier.height(6.dp))
+
+                            if (isExpanded) {
+                                HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
+                                Text(
+                                    text = mail.contenu,
+                                    fontSize = 13.sp,
+                                    style = MaterialTheme.typography.bodyMedium,
+                                    lineHeight = 18.sp,
+                                    modifier = Modifier.padding(top = 4.dp)
+                                )
+                            } else {
+                                Text(
+                                    text = mail.contenu.replace("\n", " "),
+                                    fontSize = 12.sp,
+                                    color = Color.Gray,
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis
+                                )
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+private fun generateCsv(tickets: List<Ticket>, categories: Map<Long, String>): String {
+    val sb = StringBuilder()
+    sb.append("ID;Titre;Description;Categorie;Priorite;Statut;DateCreation;EmployeId;TechnicienId\n")
+    tickets.forEach { ticket ->
+        val catName = categories[ticket.categorieId] ?: "Inconnue"
+        val id = ticket.id
+        val title = escapeCsv(ticket.titre)
+        val description = escapeCsv(ticket.description)
+        val priority = ticket.priorite.getDisplayName()
+        val status = ticket.statut.name
+        val formattedDate = SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.FRANCE).format(Date(ticket.dateCreation))
+        val employeId = ticket.utilisateurId
+        val technicienId = ticket.technicienId ?: ""
+        sb.append("$id;$title;$description;$catName;$priority;$status;$formattedDate;$employeId;$technicienId\n")
+    }
+    return sb.toString()
+}
+
+private fun escapeCsv(value: String): String {
+    var escaped = value.replace("\"", "\"\"")
+    escaped = escaped.replace("\n", " ").replace("\r", " ")
+    if (escaped.contains(";") || escaped.contains("\"") || escaped.contains(",")) {
+        escaped = "\"$escaped\""
+    }
+    return escaped
+}
+
+private fun generatePdf(tickets: List<Ticket>, categories: Map<Long, String>): ByteArray {
+    val pdfDocument = PdfDocument()
+    val pageInfo = PdfDocument.PageInfo.Builder(595, 842, 1).create()
+    var page = pdfDocument.startPage(pageInfo)
+    var canvas = page.canvas
+
+    val titlePaint = Paint().apply {
+        typeface = Typeface.create(Typeface.DEFAULT, Typeface.BOLD)
+        textSize = 18f
+        color = AndroidColor.BLACK
+    }
+
+    val headerPaint = Paint().apply {
+        typeface = Typeface.create(Typeface.DEFAULT, Typeface.BOLD)
+        textSize = 11f
+        color = AndroidColor.DKGRAY
+    }
+
+    val textPaint = Paint().apply {
+        typeface = Typeface.DEFAULT
+        textSize = 9f
+        color = AndroidColor.BLACK
+    }
+
+    val linePaint = Paint().apply {
+        color = AndroidColor.LTGRAY
+        strokeWidth = 1f
+    }
+
+    var y = 50f
+
+    canvas.drawText("Rapport de Tickets Helpdesk", 50f, y, titlePaint)
+    y += 20f
+    canvas.drawText("Généré le: " + SimpleDateFormat("dd/MM/yyyy HH:mm", Locale.FRANCE).format(Date()), 50f, y, textPaint)
+    y += 30f
+
+    canvas.drawText("ID", 50f, y, headerPaint)
+    canvas.drawText("Titre", 90f, y, headerPaint)
+    canvas.drawText("Catégorie", 260f, y, headerPaint)
+    canvas.drawText("Priorité", 360f, y, headerPaint)
+    canvas.drawText("Statut", 450f, y, headerPaint)
+    y += 8f
+    canvas.drawLine(50f, y, 545f, y, linePaint)
+    y += 18f
+
+    var pageNumber = 1
+
+    tickets.forEach { ticket ->
+        if (y > 800f) {
+            pdfDocument.finishPage(page)
+            pageNumber++
+            val newPageInfo = PdfDocument.PageInfo.Builder(595, 842, pageNumber).create()
+            page = pdfDocument.startPage(newPageInfo)
+            canvas = page.canvas
+            y = 50f
+
+            canvas.drawText("ID", 50f, y, headerPaint)
+            canvas.drawText("Titre", 90f, y, headerPaint)
+            canvas.drawText("Catégorie", 260f, y, headerPaint)
+            canvas.drawText("Priorité", 360f, y, headerPaint)
+            canvas.drawText("Statut", 450f, y, headerPaint)
+            y += 8f
+            canvas.drawLine(50f, y, 545f, y, linePaint)
+            y += 18f
+        }
+
+        val idStr = "#${ticket.id}"
+        val catName = categories[ticket.categorieId] ?: "Inconnue"
+        val titleStr = if (ticket.titre.length > 25) ticket.titre.take(22) + "..." else ticket.titre
+        val catStr = if (catName.length > 15) catName.take(12) + "..." else catName
+        val priorityStr = ticket.priorite.getDisplayName()
+        val statusStr = ticket.statut.name
+
+        canvas.drawText(idStr, 50f, y, textPaint)
+        canvas.drawText(titleStr, 90f, y, textPaint)
+        canvas.drawText(catStr, 260f, y, textPaint)
+        canvas.drawText(priorityStr, 360f, y, textPaint)
+        canvas.drawText(statusStr, 450f, y, textPaint)
+
+        y += 18f
+    }
+
+    pdfDocument.finishPage(page)
+
+    val outputStream = java.io.ByteArrayOutputStream()
+    pdfDocument.writeTo(outputStream)
+    pdfDocument.close()
+    return outputStream.toByteArray()
 }

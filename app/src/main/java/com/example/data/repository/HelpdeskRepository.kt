@@ -11,6 +11,7 @@ class HelpdeskRepository(private val db: AppDatabase) {
     private val ticketDao = db.ticketDao()
     private val commentDao = db.commentDao()
     private val historyDao = db.historyDao()
+    private val emailLogDao = db.emailLogDao()
 
     // Utilisateurs
     suspend fun getUserByEmail(email: String): Utilisateur? = userDao.getUserByEmail(email)
@@ -19,6 +20,11 @@ class HelpdeskRepository(private val db: AppDatabase) {
     fun getTechniciansAndAdminsFlow(): Flow<List<Utilisateur>> = userDao.getTechniciansAndAdminsFlow()
     suspend fun insertUser(user: Utilisateur): Long = userDao.insertUser(user)
     suspend fun updateUser(user: Utilisateur) = userDao.updateUser(user)
+
+    // Emails Log
+    fun getAllEmailsFlow(): Flow<List<EmailLog>> = emailLogDao.getAllEmailsFlow()
+    suspend fun insertEmail(email: EmailLog): Long = emailLogDao.insertEmail(email)
+    suspend fun clearAllEmails() = emailLogDao.clearAllEmails()
 
     // Catégories
     fun getAllCategoriesFlow(): Flow<List<Categorie>> = categoryDao.getAllCategoriesFlow()

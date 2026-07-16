@@ -24,7 +24,7 @@ class MainActivity : ComponentActivity() {
         val database = AppDatabase.getDatabase(applicationContext)
         val repository = HelpdeskRepository(database)
         val viewModel: HelpdeskViewModel by viewModels {
-            HelpdeskViewModelFactory(repository)
+            HelpdeskViewModelFactory(repository, application)
         }
 
         setContent {

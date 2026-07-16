@@ -13,9 +13,10 @@ import com.example.data.model.*
         Categorie::class,
         Ticket::class,
         Commentaire::class,
-        Historique::class
+        Historique::class,
+        EmailLog::class
     ],
-    version = 1,
+    version = 2,
     exportSchema = false
 )
 @TypeConverters(Converters::class)
@@ -25,6 +26,7 @@ abstract class AppDatabase : RoomDatabase() {
     abstract fun ticketDao(): TicketDao
     abstract fun commentDao(): CommentDao
     abstract fun historyDao(): HistoryDao
+    abstract fun emailLogDao(): EmailLogDao
 
     companion object {
         @Volatile
