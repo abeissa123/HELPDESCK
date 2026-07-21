@@ -20,6 +20,7 @@ class HelpdeskRepository(private val db: AppDatabase) {
     fun getTechniciansAndAdminsFlow(): Flow<List<Utilisateur>> = userDao.getTechniciansAndAdminsFlow()
     suspend fun insertUser(user: Utilisateur): Long = userDao.insertUser(user)
     suspend fun updateUser(user: Utilisateur) = userDao.updateUser(user)
+    suspend fun deleteUser(user: Utilisateur) = userDao.deleteUser(user)
 
     // Emails Log
     fun getAllEmailsFlow(): Flow<List<EmailLog>> = emailLogDao.getAllEmailsFlow()
@@ -50,6 +51,21 @@ class HelpdeskRepository(private val db: AppDatabase) {
 
     // Pré-population de la base de données pour démonstration et tests
     suspend fun prepopulateIfNeeded() {
+        // Toujours s'assurer que l'administrateur principal (direct) est présent
+        val existingDirectAdmin = userDao.getUserByEmail("abeissajean66@gmail.com")
+        if (existingDirectAdmin == null) {
+            userDao.insertUser(
+                Utilisateur(
+                    nom = "Admin Principal (Direct)",
+                    email = "abeissajean66@gmail.com",
+                    motDePasse = "password123",
+                    role = Role.ADMIN,
+                    service = "Direction Informatique",
+                    statut = UserStatus.VALIDE
+                )
+            )
+        }
+
         val categories = categoryDao.getAllCategoriesFlow().first()
         if (categories.isEmpty()) {
             // Ajouter les catégories standard

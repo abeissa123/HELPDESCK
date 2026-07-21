@@ -112,7 +112,21 @@ class NotificationHelper(private val context: Context) {
                 // Vibration très courte discrète
                 vibrateSimple(80)
             }
+            NotificationType.ACCOUNT_APPROVED -> {
+                // Vibration joyeuse d'approbation (vibration moyenne, pause courte, vibration moyenne, pause courte, vibration longue)
+                vibrate(longArrayOf(0, 150, 100, 150, 100, 450))
+            }
         }
+    }
+
+    /**
+     * Affiche une notification système pour l'approbation du compte d'un utilisateur, avec vibration.
+     */
+    fun showApprovalNotification(userName: String, userEmail: String) {
+        val title = "Compte Approuvé 🎉"
+        val message = "Félicitations, le compte de $userName ($userEmail) a été approuvé avec succès par l'administrateur !"
+        showNotification(2000 + userEmail.hashCode(), title, message)
+        vibrateForEvent(NotificationType.ACCOUNT_APPROVED)
     }
 
     /**
@@ -142,5 +156,6 @@ enum class NotificationType {
     TICKET_ASSIGNED,
     TICKET_IN_PROGRESS,
     TICKET_RESOLVED,
-    COMMENT_ADDED
+    COMMENT_ADDED,
+    ACCOUNT_APPROVED
 }

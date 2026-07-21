@@ -241,8 +241,18 @@ class HelpdeskViewModel(
         viewModelScope.launch {
             val user = repository.getUserByEmail(email.trim())
             if (user != null && user.motDePasse == motDePasse) {
-                _currentUser.value = user
-                onSuccess()
+                when (user.statut) {
+                    UserStatus.VALIDE -> {
+                        _currentUser.value = user
+                        onSuccess()
+                    }
+                    UserStatus.EN_ATTENTE -> {
+                        onError("Votre compte est en attente d'approbation par un administrateur.")
+                    }
+                    UserStatus.REFUSE -> {
+                        onError("Votre compte a été refusé par l'administrateur.")
+                    }
+                }
             } else {
                 onError("Email ou mot de passe incorrect.")
             }
@@ -273,12 +283,88 @@ class HelpdeskViewModel(
                 email = email.trim(),
                 motDePasse = motDePasse,
                 role = role,
-                service = service?.trim()
+                service = service?.trim(),
+                statut = UserStatus.EN_ATTENTE
             )
             repository.insertUser(newUser)
-            // Se connecter directement après inscription
-            val createdUser = repository.getUserByEmail(email.trim())
-            _currentUser.value = createdUser
+            onSuccess()
+        }
+    }
+
+    fun approveUser(user: Utilisateur) {
+        viewModelScope.launch {
+            val updated = user.copy(statut = UserStatus.VALIDE)
+            repository.updateUser(updated)
+            if (_currentUser.value?.id == user.id) {
+                _currentUser.value = updated
+            }
+            // Déclencher la notification vibrante en temps réel pour l'approbation du compte
+            notificationHelper.showApprovalNotification(user.nom, user.email)
+        }
+    }
+
+    fun rejectUser(user: Utilisateur) {
+        if (user.email.equals("abeissajean66@gmail.com", ignoreCase = true)) {
+            return // Ne pas rejeter l'administrateur principal direct
+        }
+        viewModelScope.launch {
+            val updated = user.copy(statut = UserStatus.REFUSE)
+            repository.updateUser(updated)
+            if (_currentUser.value?.id == user.id) {
+                logout()
+            }
+        }
+    }
+
+    fun deleteUser(user: Utilisateur) {
+        if (user.email.equals("abeissajean66@gmail.com", ignoreCase = true)) {
+            return // Ne pas supprimer l'administrateur principal direct
+        }
+        viewModelScope.launch {
+            repository.deleteUser(user)
+            if (_currentUser.value?.id == user.id) {
+                logout()
+            }
+        }
+    }
+
+    fun resetUserCredentials(
+        user: Utilisateur,
+        newEmail: String,
+        newPassword: String,
+        onSuccess: () -> Unit,
+        onError: (String) -> Unit
+    ) {
+        viewModelScope.launch {
+            val emailTrimmed = newEmail.trim()
+            val passwordTrimmed = newPassword.trim()
+            if (emailTrimmed.isBlank() || passwordTrimmed.isBlank()) {
+                onError("L'adresse e-mail et le mot de passe ne peuvent pas être vides.")
+                return@launch
+            }
+
+            val existing = repository.getUserByEmail(emailTrimmed)
+            if (existing != null && existing.id != user.id) {
+                onError("Un autre compte utilise déjà cette adresse e-mail.")
+                return@launch
+            }
+
+            val updated = user.copy(
+                email = emailTrimmed,
+                motDePasse = passwordTrimmed
+            )
+            repository.updateUser(updated)
+
+            val emailLog = EmailLog(
+                destinataire = emailTrimmed,
+                sujet = "Réinitialisation de vos identifiants de connexion",
+                contenu = "Bonjour ${user.nom},\n\nUn administrateur a mis à jour vos identifiants pour vous permettre d'accéder à nouveau à votre compte.\n\nNouvel e-mail : $emailTrimmed\nNouveau mot de passe : $passwordTrimmed\n\nVous pouvez désormais vous connecter."
+            )
+            repository.insertEmail(emailLog)
+
+            if (_currentUser.value?.id == user.id) {
+                _currentUser.value = updated
+            }
             onSuccess()
         }
     }

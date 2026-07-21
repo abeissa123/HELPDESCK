@@ -22,6 +22,12 @@ class Converters {
 
     @TypeConverter
     fun toStatut(value: String): Statut = Statut.valueOf(value)
+
+    @TypeConverter
+    fun fromUserStatus(status: UserStatus): String = status.name
+
+    @TypeConverter
+    fun toUserStatus(value: String): UserStatus = UserStatus.valueOf(value)
 }
 
 @Dao
@@ -43,6 +49,9 @@ interface UserDao {
 
     @Update
     suspend fun updateUser(user: Utilisateur)
+
+    @Delete
+    suspend fun deleteUser(user: Utilisateur)
 }
 
 @Dao

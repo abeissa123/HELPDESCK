@@ -10,6 +10,20 @@ enum class Role {
     ADMIN
 }
 
+enum class UserStatus {
+    EN_ATTENTE,
+    VALIDE,
+    REFUSE;
+
+    fun getDisplayName(): String {
+        return when (this) {
+            EN_ATTENTE -> "En attente"
+            VALIDE -> "Validé / Approuvé"
+            REFUSE -> "Refusé"
+        }
+    }
+}
+
 enum class Priorite {
     FAIBLE,
     NORMALE,
@@ -43,7 +57,8 @@ data class Utilisateur(
     val role: Role,
     val service: String? = null,
     val notifVibration: Boolean = true,
-    val notifEmail: Boolean = true
+    val notifEmail: Boolean = true,
+    val statut: UserStatus = UserStatus.VALIDE
 )
 
 @Entity(tableName = "categories")

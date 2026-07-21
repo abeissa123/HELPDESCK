@@ -127,6 +127,7 @@ fun LoginScreen(viewModel: HelpdeskViewModel) {
     var selectedRole by remember { mutableStateOf(Role.EMPLOYE) }
 
     var errorMessage by remember { mutableStateOf<String?>(null) }
+    var successMessage by remember { mutableStateOf<String?>(null) }
     val focusManager = LocalFocusManager.current
 
     Box(
@@ -202,6 +203,7 @@ fun LoginScreen(viewModel: HelpdeskViewModel) {
                                     .clickable {
                                         isSignUp = false
                                         errorMessage = null
+                                        successMessage = null
                                     }
                                     .padding(vertical = 8.dp),
                                 contentAlignment = Alignment.Center
@@ -220,6 +222,7 @@ fun LoginScreen(viewModel: HelpdeskViewModel) {
                                     .clickable {
                                         isSignUp = true
                                         errorMessage = null
+                                        successMessage = null
                                     }
                                     .padding(vertical = 8.dp),
                                 contentAlignment = Alignment.Center
@@ -241,6 +244,22 @@ fun LoginScreen(viewModel: HelpdeskViewModel) {
                                 Text(
                                     text = errorMessage!!,
                                     color = MaterialTheme.colorScheme.onErrorContainer,
+                                    fontSize = 13.sp,
+                                    modifier = Modifier.padding(8.dp),
+                                    textAlign = TextAlign.Center
+                                )
+                            }
+                        }
+
+                        if (successMessage != null) {
+                            Surface(
+                                color = Color(0xFFE8F5E9), // Light green container
+                                shape = RoundedCornerShape(8.dp),
+                                modifier = Modifier.fillMaxWidth()
+                            ) {
+                                Text(
+                                    text = successMessage!!,
+                                    color = Color(0xFF2E7D32), // Dark green text
                                     fontSize = 13.sp,
                                     modifier = Modifier.padding(8.dp),
                                     textAlign = TextAlign.Center
@@ -348,7 +367,12 @@ fun LoginScreen(viewModel: HelpdeskViewModel) {
                                         motDePasse = password,
                                         role = selectedRole,
                                         service = service.ifBlank { null },
-                                        onSuccess = {},
+                                        onSuccess = {
+                                            successMessage = "Compte créé ! Votre inscription est en attente d'approbation par un administrateur."
+                                            isSignUp = false // switch to Login tab
+                                            name = ""
+                                            service = ""
+                                        },
                                         onError = { errorMessage = it }
                                     )
                                 } else {
@@ -376,83 +400,21 @@ fun LoginScreen(viewModel: HelpdeskViewModel) {
                 }
             }
 
-            // Comptes de démonstration pré-configurés
+            // Informations de sécurité et approbation
             item {
-                Spacer(modifier = Modifier.height(8.dp))
-                Card(
-                    modifier = Modifier.fillMaxWidth(),
-                    colors = CardDefaults.cardColors(
-                        containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
-                    ),
-                    shape = RoundedCornerShape(12.dp)
+                Spacer(modifier = Modifier.height(12.dp))
+                Surface(
+                    color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.3f),
+                    shape = RoundedCornerShape(8.dp),
+                    modifier = Modifier.fillMaxWidth()
                 ) {
-                    Column(
-                        modifier = Modifier.padding(16.dp),
-                        verticalArrangement = Arrangement.spacedBy(8.dp)
-                    ) {
-                        Text(
-                            text = "🚀 Comptes de Démo (Connexion rapide)",
-                            fontWeight = FontWeight.Bold,
-                            fontSize = 14.sp,
-                            color = MaterialTheme.colorScheme.primary
-                        )
-                        Text(
-                            text = "Cliquez sur l'un des comptes pré-remplis pour tester les différents rôles de l'application :",
-                            fontSize = 12.sp,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.8f)
-                        )
-
-                        val demoAccounts = listOf(
-                            Triple("Jean Dupont (Employé)", "employe@company.com", Role.EMPLOYE),
-                            Triple("Alice Martin (Employé)", "employe2@company.com", Role.EMPLOYE),
-                            Triple("Pierre Tech (Technicien)", "tech@company.com", Role.TECHNICIEN),
-                            Triple("Directeur Admin (Admin)", "admin@company.com", Role.ADMIN)
-                        )
-
-                        demoAccounts.forEach { (label, demoEmail, role) ->
-                            val colorRole = when (role) {
-                                Role.EMPLOYE -> MaterialTheme.colorScheme.primary
-                                Role.TECHNICIEN -> Color(0xFFE65100)
-                                Role.ADMIN -> Color(0xFFC2185B)
-                            }
-                            Row(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .border(
-                                        1.dp,
-                                        MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.2f),
-                                        RoundedCornerShape(6.dp)
-                                    )
-                                    .clip(RoundedCornerShape(6.dp))
-                                    .background(MaterialTheme.colorScheme.surface)
-                                    .clickable {
-                                        email = demoEmail
-                                        password = "password123"
-                                        errorMessage = null
-                                    }
-                                    .padding(horizontal = 12.dp, vertical = 8.dp),
-                                horizontalArrangement = Arrangement.SpaceBetween,
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                Column {
-                                    Text(label, fontWeight = FontWeight.SemiBold, fontSize = 13.sp)
-                                    Text(demoEmail, fontSize = 11.sp, color = Color.Gray)
-                                }
-                                Surface(
-                                    color = colorRole.copy(alpha = 0.15f),
-                                    shape = RoundedCornerShape(4.dp)
-                                ) {
-                                    Text(
-                                        text = role.name,
-                                        fontSize = 10.sp,
-                                        fontWeight = FontWeight.Bold,
-                                        color = colorRole,
-                                        modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
-                                    )
-                                }
-                            }
-                        }
-                    }
+                    Text(
+                        text = "🔒 Sécurité : Tout nouvel utilisateur inscrit commence avec le statut 'En attente'. Un administrateur doit l'approuver depuis son espace d'administration avant qu'il ne puisse se connecter.",
+                        fontSize = 12.sp,
+                        color = MaterialTheme.colorScheme.onPrimaryContainer,
+                        modifier = Modifier.padding(12.dp),
+                        fontWeight = FontWeight.Medium
+                    )
                 }
             }
         }
@@ -2182,9 +2144,15 @@ fun AdminPanelScreen(viewModel: HelpdeskViewModel, navController: NavHostControl
     val categoriesList by viewModel.categories.collectAsStateWithLifecycle()
     val allUsers by viewModel.allUsers.collectAsStateWithLifecycle()
     val stats by viewModel.stats.collectAsStateWithLifecycle()
+    val currentUser by viewModel.currentUser.collectAsStateWithLifecycle()
 
     var newCategoryName by remember { mutableStateOf("") }
     var errorMessage by remember { mutableStateOf<String?>(null) }
+
+    var userToReset by remember { mutableStateOf<Utilisateur?>(null) }
+    var resetEmail by remember { mutableStateOf("") }
+    var resetPassword by remember { mutableStateOf("") }
+    var resetError by remember { mutableStateOf<String?>(null) }
 
     Scaffold(
         topBar = {
@@ -2337,24 +2305,115 @@ fun AdminPanelScreen(viewModel: HelpdeskViewModel, navController: NavHostControl
                                 verticalAlignment = Alignment.CenterVertically
                             ) {
                                 Column(modifier = Modifier.weight(1f)) {
-                                    Text(user.nom, fontWeight = FontWeight.Bold, fontSize = 14.sp)
+                                    Row(verticalAlignment = Alignment.CenterVertically) {
+                                        Text(user.nom, fontWeight = FontWeight.Bold, fontSize = 14.sp)
+                                        Spacer(modifier = Modifier.width(6.dp))
+                                        
+                                        // Status badge
+                                        val statusColor = when (user.statut) {
+                                            UserStatus.VALIDE -> Color(0xFF388E3C)
+                                            UserStatus.EN_ATTENTE -> Color(0xFFFBC02D)
+                                            UserStatus.REFUSE -> Color(0xFFD32F2F)
+                                        }
+                                        val statusBgColor = statusColor.copy(alpha = 0.12f)
+                                        Surface(
+                                            color = statusBgColor,
+                                            shape = RoundedCornerShape(4.dp)
+                                        ) {
+                                            Text(
+                                                text = when (user.statut) {
+                                                    UserStatus.VALIDE -> "Approuvé"
+                                                    UserStatus.EN_ATTENTE -> "En attente"
+                                                    UserStatus.REFUSE -> "Refusé"
+                                                },
+                                                fontSize = 9.sp,
+                                                fontWeight = FontWeight.Bold,
+                                                color = statusColor,
+                                                modifier = Modifier.padding(horizontal = 4.dp, vertical = 1.dp)
+                                            )
+                                        }
+                                    }
                                     Text(
                                         text = "${user.email} • Service : ${user.service ?: "Aucun"}",
                                         fontSize = 11.sp,
                                         color = Color.Gray
                                     )
                                 }
-                                Surface(
-                                    color = colorRole.copy(alpha = 0.15f),
-                                    shape = RoundedCornerShape(4.dp)
+                                
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.spacedBy(4.dp)
                                 ) {
-                                    Text(
-                                        text = user.role.name,
-                                        fontSize = 10.sp,
-                                        fontWeight = FontWeight.Bold,
-                                        color = colorRole,
-                                        modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
-                                    )
+                                    // Role badge
+                                    Surface(
+                                        color = colorRole.copy(alpha = 0.15f),
+                                        shape = RoundedCornerShape(4.dp)
+                                    ) {
+                                        Text(
+                                            text = user.role.name,
+                                            fontSize = 10.sp,
+                                            fontWeight = FontWeight.Bold,
+                                            color = colorRole,
+                                            modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                                        )
+                                    }
+
+                                    // Action buttons for other users (excluding self and primary direct admin)
+                                    if (user.id != currentUser?.id && !user.email.equals("abeissajean66@gmail.com", ignoreCase = true)) {
+                                        if (user.statut != UserStatus.VALIDE) {
+                                            IconButton(
+                                                onClick = { viewModel.approveUser(user) },
+                                                modifier = Modifier.size(28.dp).testTag("approve_user_${user.id}")
+                                            ) {
+                                                Icon(
+                                                    imageVector = Icons.Default.CheckCircle,
+                                                    contentDescription = "Accepter / Valider / Approuver",
+                                                    tint = Color(0xFF388E3C),
+                                                    modifier = Modifier.size(18.dp)
+                                                )
+                                            }
+                                        }
+                                        if (user.statut != UserStatus.REFUSE) {
+                                            IconButton(
+                                                onClick = { viewModel.rejectUser(user) },
+                                                modifier = Modifier.size(28.dp).testTag("reject_user_${user.id}")
+                                            ) {
+                                                Icon(
+                                                    imageVector = Icons.Default.Close,
+                                                    contentDescription = "Refuser",
+                                                    tint = Color(0xFFD32F2F),
+                                                    modifier = Modifier.size(18.dp)
+                                                )
+                                            }
+                                        }
+                                        IconButton(
+                                            onClick = { 
+                                                userToReset = user
+                                                resetEmail = user.email
+                                                resetPassword = user.motDePasse ?: ""
+                                                resetError = null
+                                            },
+                                            modifier = Modifier.size(28.dp).testTag("reset_user_${user.id}")
+                                        ) {
+                                            Icon(
+                                                imageVector = Icons.Default.Lock,
+                                                contentDescription = "Réinitialiser les identifiants",
+                                                tint = MaterialTheme.colorScheme.primary,
+                                                modifier = Modifier.size(18.dp)
+                                            )
+                                        }
+                                        IconButton(
+                                            onClick = { viewModel.deleteUser(user) },
+                                            modifier = Modifier.size(28.dp).testTag("delete_user_${user.id}")
+                                        ) {
+                                            Icon(
+                                                imageVector = Icons.Default.Delete,
+                                                contentDescription = "Supprimer",
+                                                tint = MaterialTheme.colorScheme.error,
+                                                modifier = Modifier.size(18.dp)
+                                            )
+                                        }
+                                    }
                                 }
                             }
                         }
@@ -2362,6 +2421,112 @@ fun AdminPanelScreen(viewModel: HelpdeskViewModel, navController: NavHostControl
                 }
             }
         }
+    }
+
+    if (userToReset != null) {
+        AlertDialog(
+            onDismissRequest = { userToReset = null },
+            title = {
+                Text(
+                    text = "Réinitialiser les identifiants 🔐",
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 18.sp
+                )
+            },
+            text = {
+                Column(
+                    verticalArrangement = Arrangement.spacedBy(12.dp),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Text(
+                        text = "Modifier l'adresse e-mail ou définir un nouveau mot de passe pour ${userToReset?.nom} afin de lui redonner accès.",
+                        fontSize = 13.sp,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+
+                    var passwordVisible by remember { mutableStateOf(false) }
+
+                    OutlinedTextField(
+                        value = resetEmail,
+                        onValueChange = { 
+                            resetEmail = it
+                            resetError = null
+                        },
+                        label = { Text("Adresse e-mail") },
+                        singleLine = true,
+                        modifier = Modifier.fillMaxWidth().testTag("reset_email_input"),
+                        leadingIcon = { Icon(Icons.Default.Email, contentDescription = null) }
+                    )
+
+                    OutlinedTextField(
+                        value = resetPassword,
+                        onValueChange = { 
+                            resetPassword = it
+                            resetError = null
+                        },
+                        label = { Text("Nouveau mot de passe") },
+                        singleLine = true,
+                        modifier = Modifier.fillMaxWidth().testTag("reset_password_input"),
+                        leadingIcon = { Icon(Icons.Default.Lock, contentDescription = null) },
+                        visualTransformation = if (passwordVisible) VisualTransformation.None else PasswordVisualTransformation(),
+                        trailingIcon = {
+                            val image = if (passwordVisible) Icons.Default.Visibility else Icons.Default.VisibilityOff
+                            IconButton(onClick = { passwordVisible = !passwordVisible }) {
+                                Icon(imageVector = image, contentDescription = if (passwordVisible) "Masquer" else "Afficher")
+                            }
+                        }
+                    )
+
+                    if (resetError != null) {
+                        Surface(
+                            color = MaterialTheme.colorScheme.errorContainer,
+                            shape = RoundedCornerShape(8.dp),
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Text(
+                                text = resetError!!,
+                                color = MaterialTheme.colorScheme.onErrorContainer,
+                                fontSize = 12.sp,
+                                modifier = Modifier.padding(10.dp)
+                            )
+                        }
+                    }
+                }
+            },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        val targetUser = userToReset
+                        if (targetUser != null) {
+                            viewModel.resetUserCredentials(
+                                user = targetUser,
+                                newEmail = resetEmail,
+                                newPassword = resetPassword,
+                                onSuccess = {
+                                    userToReset = null
+                                    resetEmail = ""
+                                    resetPassword = ""
+                                    resetError = null
+                                },
+                                onError = {
+                                    resetError = it
+                                }
+                            )
+                        }
+                    },
+                    modifier = Modifier.testTag("confirm_reset_btn")
+                ) {
+                    Text("Enregistrer")
+                }
+            },
+            dismissButton = {
+                TextButton(
+                    onClick = { userToReset = null }
+                ) {
+                    Text("Annuler")
+                }
+            }
+        )
     }
 }
 
