@@ -218,6 +218,18 @@ class HelpdeskViewModel(
         }
     }
 
+    fun markAllEmailsAsRead() {
+        viewModelScope.launch {
+            repository.markAllAsRead()
+        }
+    }
+
+    fun markEmailAsRead(emailId: Long) {
+        viewModelScope.launch {
+            repository.markAsRead(emailId)
+        }
+    }
+
     fun envoyerEmailTest(user: Utilisateur, sujet: String, contenu: String) {
         viewModelScope.launch {
             simulerEnvoiEmail(user, sujet, contenu)

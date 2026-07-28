@@ -116,6 +116,12 @@ interface EmailLogDao {
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertEmail(email: EmailLog): Long
 
+    @Query("UPDATE emails_log SET lu = 1 WHERE lu = 0")
+    suspend fun markAllAsRead()
+
+    @Query("UPDATE emails_log SET lu = 1 WHERE id = :emailId")
+    suspend fun markAsRead(emailId: Long)
+
     @Query("DELETE FROM emails_log")
     suspend fun clearAllEmails()
 }

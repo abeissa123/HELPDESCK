@@ -107,5 +107,6 @@ data class EmailLog(
     val destinataire: String,
     val sujet: String,
     val contenu: String,
-    val dateEnvoi: Long = System.currentTimeMillis()
+    val dateEnvoi: Long = System.currentTimeMillis(),
+    val lu: Boolean = false
 )

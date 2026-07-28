@@ -25,6 +25,8 @@ class HelpdeskRepository(private val db: AppDatabase) {
     // Emails Log
     fun getAllEmailsFlow(): Flow<List<EmailLog>> = emailLogDao.getAllEmailsFlow()
     suspend fun insertEmail(email: EmailLog): Long = emailLogDao.insertEmail(email)
+    suspend fun markAllAsRead() = emailLogDao.markAllAsRead()
+    suspend fun markAsRead(emailId: Long) = emailLogDao.markAsRead(emailId)
     suspend fun clearAllEmails() = emailLogDao.clearAllEmails()
 
     // Catégories

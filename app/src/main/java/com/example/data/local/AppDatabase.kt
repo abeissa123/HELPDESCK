@@ -16,7 +16,7 @@ import com.example.data.model.*
         Historique::class,
         EmailLog::class
     ],
-    version = 3,
+    version = 4,
     exportSchema = false
 )
 @TypeConverters(Converters::class)

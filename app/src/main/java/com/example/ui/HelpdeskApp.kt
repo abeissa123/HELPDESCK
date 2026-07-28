@@ -430,6 +430,8 @@ fun DashboardScreen(viewModel: HelpdeskViewModel, navController: NavHostControll
     val user by viewModel.currentUser.collectAsStateWithLifecycle()
     val stats by viewModel.stats.collectAsStateWithLifecycle()
     val tickets by viewModel.filteredTickets.collectAsStateWithLifecycle()
+    val emailLogs by viewModel.emailLogs.collectAsStateWithLifecycle()
+    val unreadCount = emailLogs.count { !it.lu }
 
     Scaffold(
         topBar = {
@@ -437,7 +439,20 @@ fun DashboardScreen(viewModel: HelpdeskViewModel, navController: NavHostControll
                 title = { Text("Tableau de Bord", fontWeight = FontWeight.Bold) },
                 actions = {
                     IconButton(onClick = { navController.navigate("emails_simules") }) {
-                        Icon(Icons.Default.Email, contentDescription = "Journal des e-mails")
+                        BadgedBox(
+                            badge = {
+                                if (unreadCount > 0) {
+                                    Badge(
+                                        containerColor = MaterialTheme.colorScheme.error,
+                                        contentColor = MaterialTheme.colorScheme.onError
+                                    ) {
+                                        Text(text = unreadCount.toString())
+                                    }
+                                }
+                            }
+                        ) {
+                            Icon(Icons.Default.Email, contentDescription = "Journal des e-mails")
+                        }
                     }
                     IconButton(onClick = { navController.navigate("settings") }) {
                         Icon(Icons.Default.Notifications, contentDescription = "Paramètres de notifications")
@@ -2154,6 +2169,9 @@ fun AdminPanelScreen(viewModel: HelpdeskViewModel, navController: NavHostControl
     var resetPassword by remember { mutableStateOf("") }
     var resetError by remember { mutableStateOf<String?>(null) }
 
+    var categoryToDelete by remember { mutableStateOf<Categorie?>(null) }
+    var userToDelete by remember { mutableStateOf<Utilisateur?>(null) }
+
     Scaffold(
         topBar = {
             TopAppBar(
@@ -2272,7 +2290,7 @@ fun AdminPanelScreen(viewModel: HelpdeskViewModel, navController: NavHostControl
                                     Text(cat.nom, fontSize = 14.sp)
                                 }
                                 IconButton(
-                                    onClick = { viewModel.deleteCategory(cat) },
+                                    onClick = { categoryToDelete = cat },
                                     modifier = Modifier.testTag("delete_category_${cat.id}")
                                 ) {
                                     Icon(Icons.Default.Delete, contentDescription = "Supprimer", tint = MaterialTheme.colorScheme.error)
@@ -2403,7 +2421,7 @@ fun AdminPanelScreen(viewModel: HelpdeskViewModel, navController: NavHostControl
                                             )
                                         }
                                         IconButton(
-                                            onClick = { viewModel.deleteUser(user) },
+                                            onClick = { userToDelete = user },
                                             modifier = Modifier.size(28.dp).testTag("delete_user_${user.id}")
                                         ) {
                                             Icon(
@@ -2522,6 +2540,88 @@ fun AdminPanelScreen(viewModel: HelpdeskViewModel, navController: NavHostControl
             dismissButton = {
                 TextButton(
                     onClick = { userToReset = null }
+                ) {
+                    Text("Annuler")
+                }
+            }
+        )
+    }
+
+    if (categoryToDelete != null) {
+        AlertDialog(
+            onDismissRequest = { categoryToDelete = null },
+            title = {
+                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Icon(Icons.Default.Delete, contentDescription = null, tint = MaterialTheme.colorScheme.error)
+                    Text("Supprimer la catégorie 🏷️", fontWeight = FontWeight.Bold)
+                }
+            },
+            text = {
+                Text("Êtes-vous sûr de vouloir supprimer la catégorie \"${categoryToDelete?.nom}\" ? Cette action est irréversible.")
+            },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        val targetCat = categoryToDelete
+                        if (targetCat != null) {
+                            viewModel.deleteCategory(targetCat)
+                        }
+                        categoryToDelete = null
+                    },
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = MaterialTheme.colorScheme.error,
+                        contentColor = MaterialTheme.colorScheme.onError
+                    ),
+                    modifier = Modifier.testTag("confirm_delete_category_btn")
+                ) {
+                    Text("Supprimer")
+                }
+            },
+            dismissButton = {
+                OutlinedButton(
+                    onClick = { categoryToDelete = null },
+                    modifier = Modifier.testTag("cancel_delete_category_btn")
+                ) {
+                    Text("Annuler")
+                }
+            }
+        )
+    }
+
+    if (userToDelete != null) {
+        AlertDialog(
+            onDismissRequest = { userToDelete = null },
+            title = {
+                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Icon(Icons.Default.Delete, contentDescription = null, tint = MaterialTheme.colorScheme.error)
+                    Text("Supprimer l'utilisateur 👤", fontWeight = FontWeight.Bold)
+                }
+            },
+            text = {
+                Text("Êtes-vous sûr de vouloir supprimer définitivement le compte de ${userToDelete?.nom} (${userToDelete?.email}) ? Cette action est irréversible.")
+            },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        val targetUser = userToDelete
+                        if (targetUser != null) {
+                            viewModel.deleteUser(targetUser)
+                        }
+                        userToDelete = null
+                    },
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = MaterialTheme.colorScheme.error,
+                        contentColor = MaterialTheme.colorScheme.onError
+                    ),
+                    modifier = Modifier.testTag("confirm_delete_user_btn")
+                ) {
+                    Text("Supprimer")
+                }
+            },
+            dismissButton = {
+                OutlinedButton(
+                    onClick = { userToDelete = null },
+                    modifier = Modifier.testTag("cancel_delete_user_btn")
                 ) {
                     Text("Annuler")
                 }
@@ -2713,6 +2813,10 @@ fun EmailsSimulesScreen(viewModel: HelpdeskViewModel, navController: NavHostCont
     val emailLogs by viewModel.emailLogs.collectAsStateWithLifecycle()
     val sdf = remember { SimpleDateFormat("dd/MM HH:mm", Locale.FRANCE) }
 
+    LaunchedEffect(Unit) {
+        viewModel.markAllEmailsAsRead()
+    }
+
     Scaffold(
         topBar = {
             TopAppBar(
@@ -2795,9 +2899,16 @@ fun EmailsSimulesScreen(viewModel: HelpdeskViewModel, navController: NavHostCont
                             .fillMaxWidth()
                             .clickable { isExpanded = !isExpanded },
                         colors = CardDefaults.cardColors(
-                            containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f)
+                            containerColor = if (!mail.lu) {
+                                MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.25f)
+                            } else {
+                                MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f)
+                            }
                         ),
-                        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
+                        border = BorderStroke(
+                            width = if (!mail.lu) 1.5.dp else 1.dp,
+                            color = if (!mail.lu) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outlineVariant
+                        ),
                         shape = RoundedCornerShape(12.dp)
                     ) {
                         Column(modifier = Modifier.padding(16.dp)) {
@@ -2813,7 +2924,7 @@ fun EmailsSimulesScreen(viewModel: HelpdeskViewModel, navController: NavHostCont
                                 ) {
                                     Surface(
                                         shape = CircleShape,
-                                        color = MaterialTheme.colorScheme.secondary,
+                                        color = if (!mail.lu) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.secondary,
                                         modifier = Modifier.size(36.dp)
                                     ) {
                                         Box(contentAlignment = Alignment.Center) {
@@ -2826,13 +2937,26 @@ fun EmailsSimulesScreen(viewModel: HelpdeskViewModel, navController: NavHostCont
                                         }
                                     }
                                     Column {
-                                        Text(
-                                            text = "A : ${mail.destinataire}",
-                                            fontWeight = FontWeight.Bold,
-                                            fontSize = 13.sp,
-                                            maxLines = 1,
-                                            overflow = TextOverflow.Ellipsis
-                                        )
+                                        Row(
+                                            verticalAlignment = Alignment.CenterVertically,
+                                            horizontalArrangement = Arrangement.spacedBy(6.dp)
+                                        ) {
+                                            Text(
+                                                text = "A : ${mail.destinataire}",
+                                                fontWeight = FontWeight.Bold,
+                                                fontSize = 13.sp,
+                                                maxLines = 1,
+                                                overflow = TextOverflow.Ellipsis,
+                                                modifier = Modifier.weight(1f, fill = false)
+                                            )
+                                            if (!mail.lu) {
+                                                Surface(
+                                                    color = MaterialTheme.colorScheme.primary,
+                                                    shape = CircleShape,
+                                                    modifier = Modifier.size(8.dp)
+                                                ) {}
+                                            }
+                                        }
                                         Text(
                                             text = "De : noreply@company.com",
                                             fontSize = 11.sp,
